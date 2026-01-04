@@ -1,6 +1,10 @@
 # 🚀 Fedora Memory Optimizer v4.0
 
-**Fail-Safe Memory Management with AI-Ready Diagnostics**
+### *"macOS-like memory management for Linux"*
+
+> **No more OOM kills. No more frozen systems. No more lost work.**
+>
+> While other systems kill your apps when memory runs low, we keep them alive with intelligent compression and graceful throttling.
 
 Production-grade memory optimization for Fedora/RHEL systems. Prevents OOM kills and system freezes using a **never-kill** approach with intelligent hibernate support.
 
@@ -16,8 +20,18 @@ Production-grade memory optimization for Fedora/RHEL systems. Prevents OOM kills
 This optimizer **never kills processes**. Instead:
 
 ```
-When Memory Pressure Increases →
+## 💡 Why This Exists
 
+| Scenario | ❌ Default Linux | ✅ With This Script |
+|----------|------------------|---------------------|
+| RAM full while coding | VS Code killed, unsaved work **GONE** | VS Code slows down, you save & close |
+| 50 browser tabs | Random tabs killed | Tabs compressed, system stays responsive |
+| Large compilation | Build killed mid-process | Build slows, completes successfully |
+| Gaming + streaming | Game crashes | Frame drops, but game survives |
+
+**We turned Linux memory management from "survival of the fittest" into "everyone survives, some just walk slower."**
+
+When Memory Pressure Increases →
 ┌─────────────────────────────────────────────────────────────────┐
 │ 1. zram swap activates (compressed RAM)                         │
 │ 2. Overflow to swapfile (NVMe/SSD)                              │
