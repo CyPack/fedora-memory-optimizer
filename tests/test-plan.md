@@ -121,33 +121,7 @@
 
 ---
 
-### TC7: OOM Policy - Never-Kill
-**Steps:**
-1. Run `./scripts/memory-optimizer.sh --oom-policy=never-kill`
-2. Check earlyoom status
-3. Check systemd-oomd config
-4. Check user slice limits
-
-**Expected Results:**
-- [ ] earlyoom disabled
-- [ ] systemd-oomd at 95% threshold
-- [ ] MemoryHigh set, MemoryMax not set
-
----
-
-### TC8: OOM Policy - Active
-**Steps:**
-1. Run `./scripts/memory-optimizer.sh --oom-policy=active`
-2. Check earlyoom status
-3. Check systemd-oomd config
-
-**Expected Results:**
-- [ ] earlyoom enabled (if available)
-- [ ] systemd-oomd at 80% threshold
-
----
-
-### TC9: Rollback
+### TC7: Rollback
 **Preconditions:**
 - Optimizer previously installed
 - Backup exists
@@ -166,7 +140,7 @@
 
 ---
 
-### TC10: Idempotency
+### TC8: Idempotency
 **Steps:**
 1. Run optimizer once
 2. Note all configurations
@@ -181,7 +155,7 @@
 
 ---
 
-### TC11: Low RAM System (4GB)
+### TC9: Low RAM System (4GB)
 **Steps:**
 1. Test on 4GB RAM system
 2. Verify minimum sizes applied
@@ -193,7 +167,7 @@
 
 ---
 
-### TC12: High RAM System (64GB+)
+### TC10: High RAM System (64GB+)
 **Steps:**
 1. Test on 64GB+ RAM system
 2. Verify maximum sizes respected
@@ -216,7 +190,6 @@ zramctl
 swapon --show
 sysctl vm.swappiness vm.page-cluster vm.vfs_cache_pressure
 cat /sys/module/zswap/parameters/enabled
-systemctl is-active earlyoom systemd-oomd
 cat /proc/pressure/memory
 free -h
 ```

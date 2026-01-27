@@ -31,8 +31,8 @@ Production-grade memory optimization for Linux systems. Combines the best featur
 │ Tier 3: Swapfile = ZRAM/2 (priority 10)                                      │
 │         └── NVMe/SSD fallback (~150μs latency)                               │
 │                       ↓ (all swap exhausted)                                 │
-│ Tier 4: OOM Policy (configurable)                                            │
-│         └── never-kill | passive | active                                    │
+│ Tier 4: Kernel OOM (system default)                                          │
+│         └── Trusts kernel's built-in OOM killer                              │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -59,7 +59,6 @@ Production-grade memory optimization for Linux systems. Combines the best featur
 | **Multi-Filesystem** | ext4, xfs, btrfs (NODATACOW handling) |
 | **Hibernate Protection** | Auto-detects and preserves hibernate config |
 | **Rollback System** | Timestamped backups with easy restoration |
-| **3 OOM Policies** | never-kill, passive, active |
 | **Dry-Run Mode** | Test before applying changes |
 | **Verification Script** | Post-reboot configuration check |
 
@@ -92,14 +91,8 @@ memory-optimizer-verify
 ### Basic Installation
 
 ```bash
-# Default (passive OOM policy)
+# Standard installation
 sudo ./scripts/memory-optimizer.sh
-
-# Never-kill policy (data-critical workloads)
-sudo ./scripts/memory-optimizer.sh --oom-policy=never-kill
-
-# Active OOM policy (maximum responsiveness)
-sudo ./scripts/memory-optimizer.sh --oom-policy=active
 ```
 
 ### Options
@@ -109,22 +102,11 @@ sudo ./scripts/memory-optimizer.sh --oom-policy=active
 --force             Override hibernate protection
 --verbose           Enable debug output
 --yes               Skip confirmation prompts
---oom-policy=X      never-kill | passive | active
 --rollback PATH     Restore previous configuration
 --list-backups      Show available backups
 --verify            Run verification checks
 --help              Show help
 ```
-
----
-
-## OOM Policies
-
-| Policy | Behavior | Best For |
-|--------|----------|----------|
-| **never-kill** | System slows but never kills processes | ML training, databases, unsaved work |
-| **passive** | OOM at 95% threshold (default) | General desktop use |
-| **active** | OOM at 80%, earlyoom enabled | Gaming, real-time applications |
 
 ---
 

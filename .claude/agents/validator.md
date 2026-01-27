@@ -65,16 +65,6 @@ grep -q "zswap.enabled=0" /proc/cmdline
 - Runtime: N or 0
 - Cmdline: zswap.enabled=0
 
-### 5. OOM Configuration
-```bash
-# Check earlyoom
-systemctl is-active earlyoom
-
-# Check systemd-oomd
-systemctl is-active systemd-oomd
-cat /etc/systemd/oomd.conf.d/99-memory-optimizer.conf
-```
-
 ## Validation Report
 
 ```json
@@ -85,8 +75,7 @@ cat /etc/systemd/oomd.conf.d/99-memory-optimizer.conf
     "zram": {"status": "PASS", "details": "16GB zstd active"},
     "swapfile": {"status": "PASS", "details": "8GB at /swapfile"},
     "sysctl": {"status": "PASS", "details": "All values correct"},
-    "zswap": {"status": "PASS", "details": "Disabled"},
-    "oom": {"status": "PASS", "details": "passive policy active"}
+    "zswap": {"status": "PASS", "details": "Disabled"}
   },
   "warnings": [],
   "errors": []

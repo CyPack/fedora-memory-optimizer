@@ -77,38 +77,13 @@ sysctl:
   dirty_background_ratio: 5
 
 #───────────────────────────────────────────────────────────────────────────────
-# OOM POLICY
+# OOM HANDLING
 #───────────────────────────────────────────────────────────────────────────────
 
-oom:
-  # Default policy: never-kill | passive | active
-  default_policy: passive
-
-  # Policy descriptions:
-  #   never-kill: System slows but never kills processes
-  #               Best for: ML training, databases, unsaved work
-  #
-  #   passive:    OOM at 95% threshold (default)
-  #               Best for: General desktop use
-  #
-  #   active:     OOM at 80% threshold, earlyoom enabled
-  #               Best for: Gaming, real-time applications
-
-  policies:
-    never-kill:
-      earlyoom_enabled: false
-      systemd_oomd_threshold: 95
-      memory_high_percent: 75
-      # MemoryMax not set = never kill
-
-    passive:
-      earlyoom_enabled: false
-      systemd_oomd_threshold: 90
-
-    active:
-      earlyoom_enabled: true
-      earlyoom_threshold: 5
-      systemd_oomd_threshold: 80
+# OOM policy is NOT configured by this optimizer.
+# The 3-tier swap system (RAM → ZRAM → Swapfile) should handle most scenarios.
+# When all swap is exhausted, the kernel's default OOM killer will handle it.
+# This prevents potential deadlocks from custom OOM policies.
 
 #───────────────────────────────────────────────────────────────────────────────
 # BOOTLOADER

@@ -17,15 +17,8 @@ Sistem konfigürasyonunu önceki durumuna geri döndürür.
         ├── sysctl.d/
         │   └── 99-memory-optimizer.conf
         ├── systemd/
-        │   ├── zram-generator.conf
-        │   ├── oomd.conf.d/
-        │   │   └── 99-memory-optimizer.conf
-        │   └── system/
-        │       └── user-.slice.d/
-        │           └── 50-memory-limit.conf
-        ├── fstab
-        └── default/
-            └── earlyoom
+        │   └── zram-generator.conf
+        └── fstab
 ```
 
 ## Rollback Procedure
@@ -112,9 +105,9 @@ reboot
 3. Selective rollback of specific files
 
 ### Scenario 3: Application Issues
-1. Check OOM policy
-2. Rollback OOM configuration only
-3. Keep ZRAM/swap settings
+1. Check memory pressure: `cat /proc/pressure/memory`
+2. Check swap usage: `swapon --show`
+3. Adjust swappiness if needed
 
 ## Command Reference
 

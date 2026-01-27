@@ -98,8 +98,6 @@ DRY_RUN=false
 FORCE_MODE=false
 VERBOSE=false
 SKIP_CONFIRMATION=false
-OOM_POLICY="passive"  # never-kill | passive | active
-
 # Backup tracking
 CURRENT_BACKUP_DIR=""
 
@@ -583,9 +581,6 @@ EOF
         "$SYSCTL_CONF"
         "$ZRAM_CONF"
         "/etc/fstab"
-        "/etc/default/earlyoom"
-        "/etc/systemd/oomd.conf"
-        "/etc/systemd/system/user-.slice.d/50-memory-limit.conf"
     )
 
     for file in "${files_to_backup[@]}"; do
@@ -612,12 +607,6 @@ EOF
     # Save current swap status
     swapon --show > "$CURRENT_BACKUP_DIR/swap-status.txt" 2>/dev/null || true
     zramctl > "$CURRENT_BACKUP_DIR/zram-status.txt" 2>/dev/null || true
-
-    # Save service states
-    cat > "$CURRENT_BACKUP_DIR/service-states.txt" << EOF
-earlyoom: $(systemctl is-enabled earlyoom 2>/dev/null || echo "not-installed")
-systemd-oomd: $(systemctl is-enabled systemd-oomd 2>/dev/null || echo "not-installed")
-EOF
 
     log_success "Backup created: $CURRENT_BACKUP_DIR"
     log_info "Files backed up: ${#files_backed_up[@]}"
@@ -1008,25 +997,6 @@ vm.dirty_ratio = $SYSCTL_DIRTY_RATIO
 vm.dirty_background_ratio = $SYSCTL_DIRTY_BACKGROUND_RATIO
 EOF
 
-    # OOM policy specific settings
-    if [[ "$OOM_POLICY" == "never-kill" ]]; then
-        cat >> "$SYSCTL_CONF" << EOF
-
-#───────────────────────────────────────────────────────────────────────────────
-# NEVER-KILL OOM POLICY
-#───────────────────────────────────────────────────────────────────────────────
-
-# Don't panic on OOM
-vm.panic_on_oom = 0
-
-# Don't kill the task that triggered OOM
-vm.oom_kill_allocating_task = 0
-
-# Allow memory overcommit (system will throttle instead of kill)
-vm.overcommit_memory = 0
-EOF
-    fi
-
     # Apply sysctl
     log_info "Applying sysctl parameters..."
     sysctl --system > /dev/null 2>&1
@@ -1106,85 +1076,9 @@ disable_zswap() {
     return 0
 }
 
-#───────────────────────────────────────────────────────────────────────────────
-# OOM CONFIGURATION
-#───────────────────────────────────────────────────────────────────────────────
-
-configure_oom() {
-    log_subheader "Configuring OOM Policy: $OOM_POLICY"
-
-    if [[ "$DRY_RUN" == "true" ]]; then
-        log_info "[DRY-RUN] Would configure OOM policy: $OOM_POLICY"
-        return 0
-    fi
-
-    case "$OOM_POLICY" in
-        never-kill)
-            # Disable earlyoom if installed
-            if systemctl is-enabled earlyoom &>/dev/null; then
-                systemctl disable --now earlyoom
-                log_success "earlyoom disabled"
-            fi
-
-            # Configure systemd-oomd to passive mode
-            mkdir -p /etc/systemd/oomd.conf.d/
-            cat > /etc/systemd/oomd.conf.d/99-memory-optimizer.conf << EOF
-# Universal Memory Optimizer - Never-Kill OOM Policy
-[OOM]
-SwapUsedLimit=95%
-DefaultMemoryPressureDurationSec=60s
-EOF
-
-            # Set user slice memory limits (throttle only, no kill)
-            local memory_high=$((TOTAL_RAM_GB * 75 / 100))  # 75% of RAM
-            mkdir -p /etc/systemd/system/user-.slice.d/
-            cat > /etc/systemd/system/user-.slice.d/50-memory-limit.conf << EOF
-# Universal Memory Optimizer - Never-Kill Memory Limits
-[Slice]
-MemoryHigh=${memory_high}G
-# MemoryMax not set - throttle only, never kill
-EOF
-
-            log_success "Never-kill OOM policy configured"
-            ;;
-
-        passive)
-            # Keep systemd-oomd but with high threshold
-            mkdir -p /etc/systemd/oomd.conf.d/
-            cat > /etc/systemd/oomd.conf.d/99-memory-optimizer.conf << EOF
-# Universal Memory Optimizer - Passive OOM Policy
-[OOM]
-SwapUsedLimit=90%
-DefaultMemoryPressureDurationSec=30s
-EOF
-
-            log_success "Passive OOM policy configured"
-            ;;
-
-        active)
-            # Enable earlyoom if available
-            if command -v earlyoom &>/dev/null; then
-                systemctl enable --now earlyoom
-                log_success "earlyoom enabled"
-            fi
-
-            # Configure aggressive systemd-oomd
-            mkdir -p /etc/systemd/oomd.conf.d/
-            cat > /etc/systemd/oomd.conf.d/99-memory-optimizer.conf << EOF
-# Universal Memory Optimizer - Active OOM Policy
-[OOM]
-SwapUsedLimit=80%
-DefaultMemoryPressureDurationSec=10s
-EOF
-
-            log_success "Active OOM policy configured"
-            ;;
-    esac
-
-    systemctl daemon-reload
-
-    return 0
-}
+# NOTE: OOM policy removed - trusting kernel default OOM killer
+# 3-tier system (RAM → ZRAM → Swapfile → Kernel OOM) is sufficient
+# Never-kill policy removed to prevent deadlocks
 
 #───────────────────────────────────────────────────────────────────────────────
 # VERIFICATION SCRIPT
@@ -1329,7 +1223,6 @@ generate_report() {
         "architecture": "ZRAM=RAM/2, Swapfile=ZRAM/2"
     },
     "configuration": {
-        "oom_policy": "$OOM_POLICY",
         "zram_algorithm": "$ZRAM_ALGORITHM",
         "sysctl": {
             "swappiness": $SYSCTL_SWAPPINESS,
@@ -1374,7 +1267,6 @@ print_summary() {
     echo "  ZRAM: ${ZRAM_SIZE_GB}GB (RAM/2) @ priority 100"
     echo "  Swapfile: ${SWAPFILE_SIZE_GB}GB (ZRAM/2) @ priority 10"
     echo "  Compression: $ZRAM_ALGORITHM"
-    echo "  OOM Policy: $OOM_POLICY"
     echo ""
 
     echo -e "${BOLD}Kernel Parameters:${NC}"
@@ -1429,28 +1321,18 @@ ${BOLD}OPTIONS:${NC}
     --force             Force operations (override hibernate protection)
     --verbose           Enable verbose output
     --yes               Skip confirmation prompts
-
-    --oom-policy=POLICY OOM killer policy:
-                          never-kill - System slows but never kills
-                          passive    - OOM at 95% (default)
-                          active     - OOM at 80% for responsiveness
-
     --rollback PATH     Rollback to a previous backup
     --list-backups      List available backups
-
     --verify            Run verification checks only
     --help              Show this help message
     --version           Show version
 
 ${BOLD}EXAMPLES:${NC}
-    # Standard installation with default settings
+    # Standard installation
     sudo $0
 
     # Dry-run to see what would happen
     sudo $0 --dry-run
-
-    # Never-kill OOM policy (for data-critical workloads)
-    sudo $0 --oom-policy=never-kill
 
     # Force install even with hibernate configured
     sudo $0 --force
@@ -1459,12 +1341,14 @@ ${BOLD}EXAMPLES:${NC}
     sudo $0 --rollback /root/memory-optimizer-backups/backup-20260127-123456
 
 ${BOLD}ARCHITECTURE:${NC}
+    3-tier swap system (trusts kernel OOM as last resort):
+
     Example for 32GB RAM:
       ZRAM:     16GB (RAM/2) - compressed, priority 100
       Swapfile:  8GB (ZRAM/2) - disk, priority 10
 
     Memory pressure flow:
-      RAM → ZRAM (fast, compressed) → Disk (slower) → OOM policy
+      RAM → ZRAM (fast, compressed) → Disk (slower) → Kernel OOM
 
 ${BOLD}FILES:${NC}
     $SYSCTL_CONF        - Kernel parameters
@@ -1500,14 +1384,6 @@ main() {
                 ;;
             --yes|-y)
                 SKIP_CONFIRMATION=true
-                ;;
-            --oom-policy=*)
-                OOM_POLICY="${1#*=}"
-                if [[ ! "$OOM_POLICY" =~ ^(never-kill|passive|active)$ ]]; then
-                    log_error "Invalid OOM policy: $OOM_POLICY"
-                    log_error "Valid options: never-kill, passive, active"
-                    exit 1
-                fi
                 ;;
             --rollback)
                 [[ $EUID -ne 0 ]] && { log_error "Root privileges required"; exit 1; }
@@ -1547,7 +1423,7 @@ main() {
     echo -e "${CYAN}═══════════════════════════════════════════════════════════════════════${NC}"
     echo ""
     echo "  Architecture: ZRAM = RAM/2, Swapfile = ZRAM/2"
-    echo "  OOM Policy: $OOM_POLICY"
+    echo "  OOM: Kernel default (3-tier swap approach)"
     [[ "$DRY_RUN" == "true" ]] && echo -e "  ${YELLOW}DRY-RUN MODE - No changes will be made${NC}"
     echo ""
 
@@ -1572,7 +1448,6 @@ main() {
         echo "  3. Configure swapfile: ${SWAPFILE_SIZE_GB}GB at $SWAPFILE_PATH"
         echo "  4. Set kernel parameters for optimal ZRAM performance"
         echo "  5. Disable ZSWAP (conflicts with ZRAM)"
-        echo "  6. Configure OOM policy: $OOM_POLICY"
         echo ""
 
         read -r -p "Proceed with installation? (y/N) " response
@@ -1590,7 +1465,6 @@ main() {
     configure_swapfile || log_warning "Swapfile configuration failed"
     configure_sysctl || log_warning "Sysctl configuration failed"
     disable_zswap || log_warning "ZSWAP disable failed"
-    configure_oom || log_warning "OOM configuration failed"
     create_verification_script || log_warning "Verification script creation failed"
 
     # Generate report

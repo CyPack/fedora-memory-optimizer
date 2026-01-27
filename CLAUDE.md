@@ -30,10 +30,8 @@ Bu template, Linux sistemlerde memory optimizasyonu yapar:
 │         └── NVMe/SSD fallback (~150μs latency)                               │
 │         └── Example: 16GB ZRAM → 8GB Swapfile                                │
 │                       ↓ (all swap exhausted)                                 │
-│ Tier 4: OOM Policy (configurable)                                            │
-│         └── never-kill: Throttle only, system slows                          │
-│         └── passive: OOM at 95% (default)                                    │
-│         └── active: OOM at 80% for responsiveness                            │
+│ Tier 4: Kernel OOM (system default)                                          │
+│         └── Trusts kernel's built-in OOM killer                              │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -58,14 +56,8 @@ sudo ./scripts/memory-optimizer.sh --rollback /root/memory-optimizer-backups/bac
 
 ### Basic Installation
 ```bash
-# Default: passive OOM policy
+# Standard installation
 sudo ./scripts/memory-optimizer.sh
-
-# Never-kill policy (data-critical workloads)
-sudo ./scripts/memory-optimizer.sh --oom-policy=never-kill
-
-# Active OOM policy (maximum responsiveness)
-sudo ./scripts/memory-optimizer.sh --oom-policy=active
 ```
 
 ### Dry-Run (Test without changes)
@@ -112,14 +104,6 @@ sudo ./scripts/memory-optimizer.sh --rollback /path/to/backup
 | vm.vfs_cache_pressure | 50 | Protect file cache |
 | vm.watermark_scale_factor | 125 | Early kswapd activation |
 
-### OOM Policies
-
-| Policy | earlyoom | systemd-oomd | Use Case |
-|--------|----------|--------------|----------|
-| never-kill | disabled | 95% threshold | Data-critical, long computations |
-| passive | disabled | 90% threshold | Default desktop use |
-| active | enabled | 80% threshold | Gaming, real-time apps |
-
 ---
 
 ## Files Modified
@@ -130,7 +114,6 @@ sudo ./scripts/memory-optimizer.sh --rollback /path/to/backup
 | `/etc/systemd/zram-generator.conf` | ZRAM configuration |
 | `/swapfile` | Disk swap fallback |
 | `/etc/fstab` | Swapfile mount entry |
-| `/etc/systemd/oomd.conf.d/99-memory-optimizer.conf` | OOM policy |
 
 ---
 

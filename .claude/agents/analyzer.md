@@ -22,7 +22,6 @@ Sistem memory durumunu analiz eder ve optimizasyon önerileri sunar.
    - Optimal ZRAM size
    - Optimal swapfile size
    - Sysctl recommendations
-   - OOM policy suggestion
 
 ## Commands
 
@@ -55,8 +54,7 @@ journalctl -k | grep -i "killed process"
   },
   "recommendations": {
     "zram_size_gb": 16,
-    "swapfile_size_gb": 8,
-    "oom_policy": "passive"
+    "swapfile_size_gb": 8
   },
   "issues": [
     "ZSWAP enabled - conflicts with ZRAM",
@@ -76,15 +74,15 @@ IF ram < 4GB:
 ELIF ram <= 16GB:
     zram_size = ram/2
     swapfile_size = zram/2
-    oom_policy = "passive"
 
 ELIF ram <= 32GB:
     zram_size = ram/2
     swapfile_size = zram/2
-    oom_policy = "passive"
 
 ELSE (ram > 32GB):
     zram_size = min(32GB, ram/2)
     swapfile_size = min(16GB, zram/2)
-    oom_policy = "passive"
+
+# OOM: Kernel default is used (no custom policy)
+# 3-tier swap system handles memory pressure before OOM
 ```
