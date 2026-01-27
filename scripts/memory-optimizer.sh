@@ -554,6 +554,12 @@ preflight_checks() {
 create_backup() {
     log_subheader "Creating Backup"
 
+    if [[ "$DRY_RUN" == "true" ]]; then
+        log_info "[DRY-RUN] Would create backup at $BACKUP_BASE/backup-YYYYMMDD-HHMMSS"
+        CURRENT_BACKUP_DIR="(dry-run)"
+        return 0
+    fi
+
     CURRENT_BACKUP_DIR="$BACKUP_BASE/backup-$(date +%Y%m%d-%H%M%S)"
     mkdir -p "$CURRENT_BACKUP_DIR"
 
@@ -1197,6 +1203,11 @@ VERIFY_EOF
 
 generate_report() {
     log_subheader "Generating Diagnostic Report"
+
+    if [[ "$DRY_RUN" == "true" ]]; then
+        log_info "[DRY-RUN] Would generate report at $REPORT_DIR/report-YYYYMMDD-HHMMSS.json"
+        return 0
+    fi
 
     mkdir -p "$REPORT_DIR"
     local report_file="$REPORT_DIR/report-$(date +%Y%m%d-%H%M%S).json"
