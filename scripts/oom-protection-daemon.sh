@@ -249,13 +249,18 @@ set_oom_score() {
     local pid="$1"
     local score="$2"
     local name="$3"
+    local file="/proc/$pid/oom_score_adj"
 
-    # Check if we can write
-    if [[ -w "/proc/$pid/oom_score_adj" ]]; then
-        echo "$score" > "/proc/$pid/oom_score_adj" 2>/dev/null && {
+    # Try to write directly
+    if [[ -f "$file" ]]; then
+        # Use subshell to capture write errors
+        if ( echo "$score" > "$file" ) 2>/dev/null; then
             log_ok "Set oom_score_adj=$score for $name (PID $pid)"
             return 0
-        }
+        else
+            log_warn "Failed to set score for $name (PID $pid)"
+            return 1
+        fi
     fi
     return 1
 }
@@ -313,7 +318,10 @@ process_pid() {
     [[ ! -d "/proc/$pid" ]] && return
 
     # Skip kernel threads (no cmdline)
-    [[ ! -s "/proc/$pid/cmdline" ]] && return
+    # Note: -s test doesn't work on /proc filesystem, must read content
+    # Use tr to remove NULL bytes that cause bash warnings
+    local cmdline=$(tr -d '\0' < "/proc/$pid/cmdline" 2>/dev/null)
+    [[ -z "$cmdline" ]] && return
 
     local name=$(get_process_name "$pid")
     [[ -z "$name" ]] && return
@@ -322,18 +330,15 @@ process_pid() {
     [[ -z "$current_score" ]] && return
 
     local category=$(categorize_process "$name")
+
+    # Skip NORMAL category - don't change default scores
+    [[ "$category" == "NORMAL" ]] && return
+
     local target_score=$(get_category_score "$category")
 
-    # Only update if different and not already set by us or system
-    # Skip if current score is already correct
+    # Update if score is different from target
     if [[ "$current_score" != "$target_score" ]]; then
-        # For IMMORTAL, always set
-        # For others, only set if current is different
-        if [[ "$category" == "IMMORTAL" ]] || \
-           [[ "$category" == "PROTECTED" && "$current_score" -gt "$SCORE_PROTECTED" ]] || \
-           [[ "$category" == "KILLABLE" && "$current_score" -lt "$SCORE_KILLABLE" ]]; then
-            set_oom_score "$pid" "$target_score" "$name"
-        fi
+        set_oom_score "$pid" "$target_score" "$name" || true
     fi
 }
 
@@ -417,7 +422,8 @@ show_status() {
     for pid_dir in /proc/[0-9]*; do
         local pid=$(basename "$pid_dir")
         [[ ! "$pid" =~ ^[0-9]+$ ]] && continue
-        [[ ! -s "/proc/$pid/cmdline" ]] && continue
+        # Note: -s test doesn't work on /proc filesystem
+        [[ -z "$(tr -d '\0' < /proc/$pid/cmdline 2>/dev/null)" ]] && continue
 
         local name=$(get_process_name "$pid" 2>/dev/null)
         [[ -z "$name" ]] && continue
