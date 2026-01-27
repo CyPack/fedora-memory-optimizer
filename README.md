@@ -1,423 +1,277 @@
-# 🚀 Fedora Memory Optimizer v4.0
+# Universal Memory Optimizer
 
-### *"macOS-like memory management for Linux"*
+### *Cross-distribution Linux memory optimization*
 
-> **No more OOM kills. No more frozen systems. No more lost work.**
+> **Intelligent swap management with ZRAM + Disk fallback**
 >
-> While other systems kill your apps when memory runs low, we keep them alive with intelligent compression and graceful throttling.
+> Works on Fedora, Debian/Ubuntu, Arch, openSUSE and more.
 
-Production-grade memory optimization for Fedora/RHEL systems. Prevents OOM kills and system freezes using a **never-kill** approach with intelligent hibernate support.
+Production-grade memory optimization for Linux systems. Combines the best features from multiple optimizers into a single, universal solution.
 
-![Fedora](https://img.shields.io/badge/Fedora-40--50+-blue?logo=fedora)
+![Linux](https://img.shields.io/badge/Linux-Universal-blue?logo=linux)
 ![License](https://img.shields.io/badge/License-MIT-green)
 ![Shell](https://img.shields.io/badge/Shell-Bash-orange?logo=gnu-bash)
-![Version](https://img.shields.io/badge/Version-4.0.0-purple)
+![Version](https://img.shields.io/badge/Version-1.0.0-purple)
 
 ---
 
-## 🧠 NEVER-KILL PHILOSOPHY
-
-This optimizer **never kills processes**. Instead:
+## Architecture
 
 ```
-## 💡 Why This Exists
-
-| Scenario | ❌ Default Linux | ✅ With This Script |
-|----------|------------------|---------------------|
-| RAM full while coding | VS Code killed, unsaved work **GONE** | VS Code slows down, you save & close |
-| 50 browser tabs | Random tabs killed | Tabs compressed, system stays responsive |
-| Large compilation | Build killed mid-process | Build slows, completes successfully |
-| Gaming + streaming | Game crashes | Frame drops, but game survives |
-
-**We turned Linux memory management from "survival of the fittest" into "everyone survives, some just walk slower."**
-
-When Memory Pressure Increases →
-┌─────────────────────────────────────────────────────────────────┐
-│ 1. zram swap activates (compressed RAM)                         │
-│ 2. Overflow to swapfile (NVMe/SSD)                              │
-│ 3. User session gets throttled (slower but alive)               │
-│ 4. System remains responsive                                     │
-│                                                                 │
-│ ❌ No processes killed                                           │
-│ ❌ earlyoom DISABLED                                             │
-│ ❌ OOM killer never triggered                                    │
-└─────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         MEMORY HIERARCHY                                     │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ Tier 1: Physical RAM                                                         │
+│         └── Primary working memory (~100ns latency)                          │
+│                       ↓ (memory pressure)                                    │
+│ Tier 2: ZRAM = RAM/2 (priority 100)                                          │
+│         └── Compressed swap in RAM (~1μs latency)                            │
+│         └── zstd compression (~5:1 ratio)                                    │
+│                       ↓ (ZRAM exhausted)                                     │
+│ Tier 3: Swapfile = ZRAM/2 (priority 10)                                      │
+│         └── NVMe/SSD fallback (~150μs latency)                               │
+│                       ↓ (all swap exhausted)                                 │
+│ Tier 4: OOM Policy (configurable)                                            │
+│         └── never-kill | passive | active                                    │
+└─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-### Why Never-Kill?
+### Size Calculation
 
-| Approach | Problem |
-|----------|---------|
-| earlyoom | Kills browser → 100 tabs lost |
-| systemd-oomd | Kills applications → Unsaved work lost |
-| Kernel OOM | Kills random processes → System may become unstable |
-| **Never-Kill** | ✅ Nothing lost, just slower |
+| RAM | ZRAM (RAM/2) | Swapfile (ZRAM/2) | Effective Capacity |
+|-----|--------------|-------------------|-------------------|
+| 4GB | 2GB | 1GB | ~11GB |
+| 8GB | 4GB | 2GB | ~22GB |
+| 16GB | 8GB | 4GB | ~44GB |
+| 32GB | 16GB | 8GB | ~88GB |
+| 64GB | 32GB | 16GB | ~176GB |
 
----
-
-## 🛡️ FAIL-SAFE ARCHITECTURE
-
-This script **makes no assumptions**. When encountering unknown situations:
-
-| Situation | ❌ Other Scripts | ✅ This Script |
-|-----------|------------------|----------------|
-| Bootloader not detected | "Probably GRUB" → write anyway | **STOPS**, reports anomaly |
-| /boot space insufficient | `dracut --regenerate-all` | **STOPS**, suggests cleanup |
-| Ambiguous config | Makes assumptions | **ASKS THE USER** |
-| Error occurred | Says "Failed", continues | Produces **AI-ready report** |
+*Effective capacity assumes 5:1 ZRAM compression with zstd*
 
 ---
 
-## 📊 SUPPORTED SYSTEMS
+## Features
 
-### RAM Support
-
-| RAM | zram | Swapfile | User Limit | Total Swap* |
-|-----|------|----------|------------|-------------|
-| **4GB** | 2GB | 8GB | 3GB | ~16GB |
-| **8GB** | 4GB | 16GB | 6GB | ~32GB |
-| **16GB** | 8GB | 32GB | 12GB | ~64GB |
-| **32GB** | 16GB | 64GB | 24GB | ~128GB |
-| **64GB+** | 32GB | 64GB | 48GB | ~192GB |
-
-*Effective capacity with zram 4x compression
-
-### Fedora Versions
-
-| Version | Status | Notes |
-|---------|--------|-------|
-| Fedora 40-42 | ✅ **Fully Tested** | All features |
-| Fedora 43-50 | ✅ Supported | Auto-detection |
-| Fedora 50+ | ⚠️ Warning shown | AI report recommended |
-
-### Bootloader Support
-
-| Bootloader | Detection | Kernel Param |
-|------------|-----------|--------------|
-| **GRUB** | ✅ grubby + config | ✅ grubby --update-kernel |
-| **systemd-boot** | ✅ bootctl + entries | ✅ /etc/kernel/cmdline |
-| **UKI** | ✅ EFI/Linux/*.efi | ✅ cmdline + rebuild |
-| **Unknown** | ⚠️ Anomaly | ❌ Skip + manual instructions |
+| Feature | Description |
+|---------|-------------|
+| **Multi-Distribution** | Fedora, RHEL, Debian, Ubuntu, Arch, openSUSE |
+| **Multi-Bootloader** | GRUB, systemd-boot, UKI (auto-detection) |
+| **Multi-Filesystem** | ext4, xfs, btrfs (NODATACOW handling) |
+| **Hibernate Protection** | Auto-detects and preserves hibernate config |
+| **Rollback System** | Timestamped backups with easy restoration |
+| **3 OOM Policies** | never-kill, passive, active |
+| **Dry-Run Mode** | Test before applying changes |
+| **Verification Script** | Post-reboot configuration check |
 
 ---
 
-## 🛠️ INSTALLATION
-
-### Quick Install
+## Quick Start
 
 ```bash
+# Clone
 git clone https://github.com/CyPack/fedora-memory-optimizer.git
 cd fedora-memory-optimizer
 
-# Memory Optimizer
-sudo ./memory-optimizer-v4.sh
+# Test (dry-run)
+sudo ./scripts/memory-optimizer.sh --dry-run
 
-# Hibernate Support (optional)
-sudo ./setup-hibernation-v4.sh
-```
+# Install
+sudo ./scripts/memory-optimizer.sh
 
-### Pre-Installation Diagnostics
-
-```bash
-# Check system (no root required, makes no changes)
-./memory-optimizer-v4.sh --diagnose
-./setup-hibernation-v4.sh --diagnose
-```
-
-### Post-Installation
-
-```bash
-# REBOOT REQUIRED
+# Reboot
 sudo reboot
 
-# Verification
-zramctl                    # Is zram active?
-swapon --show              # Are swaps active?
-cat /proc/sys/vm/swappiness  # Should be 180
+# Verify
+memory-optimizer-verify
 ```
 
 ---
 
-## 🔄 IDEMPOTENCY (Safe Re-runs)
+## Usage
 
-The script **can be safely run multiple times**:
-
-| Component | On 2nd Run |
-|-----------|------------|
-| Swapfile | ✅ PRESERVED if exists and adequate |
-| zram config | ✅ SKIPPED if same |
-| dracut/initramfs | ✅ SKIPPED if resume module exists |
-| Kernel params | ✅ SKIPPED if already correct |
-
-```
-First run:  ~3-5 minutes (swapfile creation)
-Second run: ~1 second (everything skipped)
-```
-
----
-
-## ⚙️ CONFIGURATION
-
-### Automatic RAM Detection
-
-The script automatically detects RAM amount and selects the appropriate tier:
+### Basic Installation
 
 ```bash
-# On a 32GB RAM system:
-[INFO] RAM: 32GB → Tier T32
-[INFO] zram: 16G, swapfile: 64G, user_limit: 24G
+# Default (passive OOM policy)
+sudo ./scripts/memory-optimizer.sh
+
+# Never-kill policy (data-critical workloads)
+sudo ./scripts/memory-optimizer.sh --oom-policy=never-kill
+
+# Active OOM policy (maximum responsiveness)
+sudo ./scripts/memory-optimizer.sh --oom-policy=active
 ```
 
-### Manual Configuration
+### Options
 
-RAM tier examples are available under `config/examples/`:
-
-```bash
-cat config/examples/16gb-ram.conf
-
-# Modify values in the script:
-nano memory-optimizer-v4.sh
-# Update ZRAM_SIZE, SWAPFILE_SIZE, USER_MEMORY_HIGH values
+```
+--dry-run           Show what would be done without changes
+--force             Override hibernate protection
+--verbose           Enable debug output
+--yes               Skip confirmation prompts
+--oom-policy=X      never-kill | passive | active
+--rollback PATH     Restore previous configuration
+--list-backups      Show available backups
+--verify            Run verification checks
+--help              Show help
 ```
 
 ---
 
-## 📦 FILE STRUCTURE
+## OOM Policies
+
+| Policy | Behavior | Best For |
+|--------|----------|----------|
+| **never-kill** | System slows but never kills processes | ML training, databases, unsaved work |
+| **passive** | OOM at 95% threshold (default) | General desktop use |
+| **active** | OOM at 80%, earlyoom enabled | Gaming, real-time applications |
+
+---
+
+## Kernel Parameters
+
+Based on 2025-2026 best practices:
+
+| Parameter | Value | Source |
+|-----------|-------|--------|
+| vm.swappiness | 180 | [ArchWiki](https://wiki.archlinux.org/title/Zram), Pop!_OS |
+| vm.page-cluster | 0 | ChromeOS, Android |
+| vm.vfs_cache_pressure | 50 | [Kernel Docs](https://docs.kernel.org/admin-guide/sysctl/vm.html) |
+| vm.watermark_scale_factor | 125 | Fedora testing |
+| Compression | zstd | 5:1 ratio |
+
+---
+
+## File Structure
 
 ```
 fedora-memory-optimizer/
-├── memory-optimizer-v4.sh      # Main script
-├── setup-hibernation-v4.sh     # Hibernate setup
-├── uninstall.sh                # Removal
-├── README.md
-├── CHANGELOG.md
-├── CLAUDE.md                   # AI context
-├── LICENSE
-├── docs/
-│   ├── FAIL-SAFE.md            # Fail-safe details
-│   ├── HIBERNATION.md          # Hibernate guide
-│   └── ARCHITECTURE.md         # Technical architecture
-└── config/
-    └── examples/
-        ├── 4gb-ram.conf
-        ├── 8gb-ram.conf
-        ├── 16gb-ram.conf
-        ├── 32gb-ram.conf
-        └── 64gb-ram.conf
+├── scripts/
+│   └── memory-optimizer.sh    # Main script (1600+ lines)
+├── tests/
+│   └── test-plan.md           # Test scenarios
+├── .claude/
+│   └── agents/                # AI agent definitions
+├── config.yaml                # Configuration options
+├── CLAUDE.md                  # AI instructions
+├── README.md                  # This file
+├── LICENSE                    # MIT License
+├── input/                     # User input files
+├── output/                    # Generated output
+└── reports/                   # Diagnostic reports
 ```
 
 ---
 
-## 🔍 ANOMALY DETECTION
-
-The script automatically detects issues:
-
-```
-BOOTLOADER_CONFIDENCE = HIGH | MEDIUM | LOW | NONE
-
-HIGH   → ✅ Operation proceeds
-MEDIUM → ⚠️ Warning issued
-LOW    → ⚠️ User is asked
-NONE   → ❌ Operation SKIPPED, report generated
-```
-
-### AI-Ready Reports
-
-When issues occur, a report is created under `/root/memory-optimizer-reports/`:
-
-```
-Send this report to your AI assistant (Claude, ChatGPT):
-
-"I ran memory-optimizer on my Fedora system and anomalies
-were detected. Can you analyze the report and provide
-a custom solution?"
-
-[PASTE REPORT]
-```
-
----
-
-## 📊 WHAT GETS INSTALLED?
+## Files Modified
 
 | File | Purpose |
 |------|---------|
-| `/etc/sysctl.d/99-memory-optimizer.conf` | Kernel params (swappiness=180) |
-| `/etc/systemd/zram-generator.conf` | zram config |
-| `/etc/systemd/system/user-.slice.d/50-memory-limit.conf` | User throttle (no kill) |
-| `/etc/systemd/oomd.conf.d/99-passive-nokill.conf` | oomd passive mode |
-| `/swapfile` | Overflow swap |
+| `/etc/sysctl.d/99-memory-optimizer.conf` | Kernel parameters |
+| `/etc/systemd/zram-generator.conf` | ZRAM configuration |
+| `/swapfile` | Disk swap fallback |
+| `/etc/fstab` | Swapfile mount entry |
+| `/usr/local/bin/memory-optimizer-verify` | Verification script |
 
 ---
 
-## 🔧 TROUBLESHOOTING
+## Rollback
 
-### zram Not Active
-
-```bash
-# Diagnostics
-./memory-optimizer-v4.sh --diagnose
-
-# Fix
-sudo ./memory-optimizer-v4.sh --fix-zram
-
-# Manual check
-zramctl
-swapon --show
-```
-
-### Hibernate Not Working
+Automatic backups are created at `/root/memory-optimizer-backups/`
 
 ```bash
-# Diagnostics
-./setup-hibernation-v4.sh --diagnose
+# List available backups
+sudo ./scripts/memory-optimizer.sh --list-backups
 
-# Checks
-cat /proc/cmdline | tr ' ' '\n' | grep resume
-sudo lsinitrd /boot/initramfs-$(uname -r).img | grep resume
-```
+# Restore a backup
+sudo ./scripts/memory-optimizer.sh --rollback /root/memory-optimizer-backups/backup-YYYYMMDD-HHMMSS
 
----
-
-## 🔔 SWAP MONITOR (Desktop Notifications)
-
-Optional tool - receive desktop notifications when swap usage increases:
-
-```bash
-# Install (as user service)
-./swap-monitor.sh --install
-
-# Current status
-./swap-monitor.sh --status
-
-# Test notification
-./swap-monitor.sh --test
-
-# Uninstall
-./swap-monitor.sh --uninstall
-```
-
-### Notification Examples
-
-**When swap exceeds 50%:**
-```
-💾 Swap Usage: 52%
-
-System has started swapping.
-RAM: 14.2 / 16.0 GB (89%)
-Swap: 8.3 / 16.0 GB
-zram: 5.1 / 8.0 GB (64%)
-
-Top RAM consumers:
-  • firefox: 2048 MB (12.8%)
-  • code: 1536 MB (9.6%)
-  • docker: 1024 MB (6.4%)
-
-ℹ️ Performance may decrease
-```
-
-**When swap exceeds 80% (CRITICAL):**
-```
-⚠️ Swap Critical: 82%
-
-Swap nearly full! Remaining: 18%
-
-Recommendations:
-• Close unused applications
-• Reduce browser tab count
-• System may slow down
-```
-
-### Thresholds
-
-| Threshold | Value | Notification |
-|-----------|-------|--------------|
-| Swap Warning | 50% | Normal (yellow) |
-| Swap Critical | 80% | Critical (red) |
-| zram Warning | 70% | Low (blue) |
-| Cooldown | 5 minutes | Same warning won't repeat |
-
----
-
-## 🗑️ UNINSTALL & RESTORE
-
-```bash
-# Show installed components
-sudo ./uninstall.sh --status
-
-# List existing backups
-sudo ./uninstall.sh --list
-
-# Uninstall (saves to backup)
-sudo ./uninstall.sh
-
-# Restore from backup
-sudo ./uninstall.sh --restore
-
+# Reboot after rollback
 sudo reboot
 ```
 
-### Backup Locations
-
-| Source | Backup Directory |
-|--------|------------------|
-| memory-optimizer-v4.sh | `/root/memory-backup-TIMESTAMP/` |
-| setup-hibernation-v4.sh | `/root/hibernate-backup-TIMESTAMP/` |
-| uninstall.sh | `/root/memory-optimizer-uninstall-backup-TIMESTAMP/` |
-
-### How Restore Works
-
-```
-sudo ./uninstall.sh --restore
-
-RESTORE - Restore from Backup
-
-  [1] /root/memory-backup-20250104-194501
-      Files: 99-memory-optimizer.conf, zram-generator.conf, fstab
-
-  [2] /root/hibernate-backup-20250104-195032
-      Files: fstab, grub, dracut.conf.d
-
-Which backup do you want to restore? (1-2): 1
-
-✓ Kernel params: restored
-✓ zram config: restored
-ℹ️ User limits: already same (skipped)  ← IDEMPOTENCY
-
-RESTORE COMPLETED
-  Files restored: 2
-```
-
 ---
 
-## 📊 STRESS TEST
+## Verification
+
+After reboot:
 
 ```bash
-# Install stress-ng
-sudo dnf install stress-ng
+# Run verification script
+memory-optimizer-verify
 
-# Test (16GB RAM example)
-stress-ng --vm 4 --vm-bytes 8G --timeout 60s
-
-# Expected: System slows down but no process dies
+# Or manual checks
+zramctl                           # ZRAM status
+swapon --show                     # All swap devices
+cat /proc/sys/vm/swappiness       # Should be 180
+cat /sys/module/zswap/parameters/enabled  # Should be N or 0
 ```
 
 ---
 
-## 🆕 v4.0 Features
+## Troubleshooting
 
-- **Never-Kill Mode**: earlyoom disabled, throttle only
-- **Fail-Safe Architecture**: Makes no assumptions, produces reports
-- **AI-Ready Reports**: Copy-paste to Claude/ChatGPT
-- **Bootloader Agnostic**: GRUB, systemd-boot, UKI
-- **Idempotent**: Safe to run multiple times
-- **Fedora 40-50+ Support**: Future-version ready
+### ZRAM Not Active
+
+```bash
+systemctl status systemd-zram-setup@zram0.service
+journalctl -u systemd-zram-setup@zram0.service
+```
+
+### Swapfile Not Mounting
+
+```bash
+# Check fstab
+grep swapfile /etc/fstab
+
+# Manual activation
+sudo swapon /swapfile
+```
+
+### Wrong Sysctl Values
+
+```bash
+# Reload
+sudo sysctl --system
+
+# Check config
+cat /etc/sysctl.d/99-memory-optimizer.conf
+```
 
 ---
 
-## 📜 License
+## Requirements
+
+- Linux with systemd
+- Root privileges
+- zram-generator (auto-installed if missing)
+
+### Tested On
+
+| Distribution | Version | Status |
+|--------------|---------|--------|
+| Fedora | 40-43 | ✅ Tested |
+| Ubuntu | 22.04, 24.04 | ✅ Tested |
+| Debian | 12 | ✅ Tested |
+| Arch | Rolling | ✅ Tested |
+| openSUSE | Tumbleweed | ✅ Tested |
+
+---
+
+## Sources
+
+- [ArchWiki ZRAM](https://wiki.archlinux.org/title/Zram)
+- [Kernel sysctl Documentation](https://docs.kernel.org/admin-guide/sysctl/vm.html)
+- [Fedora SwapOnZRAM](https://fedoraproject.org/wiki/Changes/SwapOnZRAM)
+- [zram-generator](https://github.com/systemd/zram-generator)
+- [systemd-oomd](https://www.phoronix.com/news/Systemd-Facebook-OOMD)
+
+---
+
+## License
 
 MIT License - [LICENSE](LICENSE)
 
 ---
 
-**Made with 💪 for Fedora users who hate losing their work to OOM kills**
+**Made for Linux users who want intelligent memory management**
