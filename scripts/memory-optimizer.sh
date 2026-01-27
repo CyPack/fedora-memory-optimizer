@@ -44,10 +44,10 @@ readonly MAGENTA='\033[0;35m'
 readonly BOLD='\033[1m'
 readonly NC='\033[0m'
 
-# Architecture: ZRAM = RAM/2, Swapfile = ZRAM/2
-# This means: Swapfile = RAM/4
+# Architecture: ZRAM = RAM/2, Swapfile = RAM (1:1)
+# Configurable ratios for different use cases
 readonly ZRAM_RATIO=50        # 50% of RAM
-readonly SWAPFILE_RATIO=25    # 25% of RAM (which is 50% of ZRAM)
+readonly SWAPFILE_RATIO=100   # 100% of RAM (1:1 ratio, hibernate-ready)
 
 # Sysctl values (Best Practices 2025-2026)
 readonly SYSCTL_SWAPPINESS=180
@@ -187,18 +187,18 @@ detect_system() {
     # Handle edge case for systems with less than 1GB
     [[ $TOTAL_RAM_GB -lt 1 ]] && TOTAL_RAM_GB=1
 
-    # Calculate sizes based on architecture
-    # ZRAM = RAM / 2
-    ZRAM_SIZE_GB=$((TOTAL_RAM_GB / 2))
+    # Calculate sizes based on configurable ratios
+    # ZRAM = RAM * ZRAM_RATIO / 100
+    ZRAM_SIZE_GB=$((TOTAL_RAM_GB * ZRAM_RATIO / 100))
     [[ $ZRAM_SIZE_GB -lt 1 ]] && ZRAM_SIZE_GB=1
 
-    # Swapfile = ZRAM / 2 = RAM / 4
-    SWAPFILE_SIZE_GB=$((ZRAM_SIZE_GB / 2))
+    # Swapfile = RAM * SWAPFILE_RATIO / 100
+    SWAPFILE_SIZE_GB=$((TOTAL_RAM_GB * SWAPFILE_RATIO / 100))
     [[ $SWAPFILE_SIZE_GB -lt 1 ]] && SWAPFILE_SIZE_GB=1
 
     log_info "RAM: ${TOTAL_RAM_GB}GB"
-    log_info "ZRAM Size: ${ZRAM_SIZE_GB}GB (RAM/2)"
-    log_info "Swapfile Size: ${SWAPFILE_SIZE_GB}GB (ZRAM/2)"
+    log_info "ZRAM Size: ${ZRAM_SIZE_GB}GB (${ZRAM_RATIO}% of RAM)"
+    log_info "Swapfile Size: ${SWAPFILE_SIZE_GB}GB (${SWAPFILE_RATIO}% of RAM)"
 
     # Distribution detection
     if [[ -f /etc/os-release ]]; then
@@ -603,7 +603,7 @@ EOF
     cat > "$CURRENT_BACKUP_DIR/sysctl-snapshot.txt" << EOF
 # Sysctl values at backup time: $(date -Iseconds)
 vm.swappiness = $(cat /proc/sys/vm/swappiness)
-vm.page-cluster = $(cat /proc/sys/vm/page_cluster)
+vm.page-cluster = $(cat /proc/sys/vm/page_cluster 2>/dev/null || echo "N/A")
 vm.vfs_cache_pressure = $(cat /proc/sys/vm/vfs_cache_pressure)
 vm.watermark_scale_factor = $(cat /proc/sys/vm/watermark_scale_factor)
 vm.dirty_ratio = $(cat /proc/sys/vm/dirty_ratio)
@@ -1153,7 +1153,7 @@ echo ""
 # 3. Kernel Parameters
 echo -e "${BOLD}3. Kernel Parameters${NC}"
 check_value "vm.swappiness" "180" "$(cat /proc/sys/vm/swappiness)"
-check_value "vm.page-cluster" "0" "$(cat /proc/sys/vm/page_cluster)"
+check_value "vm.page-cluster" "0" "$(cat /proc/sys/vm/page_cluster 2>/dev/null || echo "N/A")"
 check_value "vm.vfs_cache_pressure" "50" "$(cat /proc/sys/vm/vfs_cache_pressure)"
 check_value "vm.watermark_scale_factor" "125" "$(cat /proc/sys/vm/watermark_scale_factor)"
 echo ""
@@ -1275,8 +1275,8 @@ print_summary() {
     echo ""
 
     echo -e "${BOLD}Configuration:${NC}"
-    echo "  ZRAM: ${ZRAM_SIZE_GB}GB (RAM/2) @ priority 100"
-    echo "  Swapfile: ${SWAPFILE_SIZE_GB}GB (ZRAM/2) @ priority 10"
+    echo "  ZRAM: ${ZRAM_SIZE_GB}GB (${ZRAM_RATIO}% of RAM) @ priority 100"
+    echo "  Swapfile: ${SWAPFILE_SIZE_GB}GB (${SWAPFILE_RATIO}% of RAM) @ priority 10"
     echo "  Compression: $ZRAM_ALGORITHM"
     echo ""
 
