@@ -129,7 +129,7 @@ log_error() {
 }
 
 log_debug() {
-    [[ "$VERBOSE" == "true" ]] && echo -e "${MAGENTA}[DEBUG]${NC} $*"
+    [[ "$VERBOSE" == "true" ]] && echo -e "${MAGENTA}[DEBUG]${NC} $*" || true
 }
 
 log_header() {
