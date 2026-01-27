@@ -806,11 +806,83 @@ EOF
 
     log_success "ZRAM config created: $ZRAM_CONF"
 
-    # Restart ZRAM service if running
-    if systemctl is-active --quiet systemd-zram-setup@zram0.service; then
-        log_info "Restarting ZRAM service..."
+    # Reset ZRAM if device exists (required for zram-generator to reconfigure)
+    if [[ -b /dev/zram0 ]]; then
+        log_info "Resetting existing ZRAM device..."
+
+        # Disable swap on ZRAM
         swapoff /dev/zram0 2>/dev/null || true
-        systemctl restart systemd-zram-setup@zram0.service
+
+        # Reset the device completely (required before zram-generator can reconfigure)
+        zramctl --reset /dev/zram0 2>/dev/null || true
+
+        # Give kernel time to fully release the device
+        sleep 0.5
+
+        # Reload systemd to pick up new config
+        systemctl daemon-reload
+
+        # Start the service (not restart - device was reset)
+        log_info "Starting ZRAM service with new config..."
+        systemctl start systemd-zram-setup@zram0.service || {
+            log_warning "zram-generator service failed, attempting manual setup..."
+
+            # Cleanup any partial state
+            swapoff /dev/zram0 2>/dev/null || true
+            zramctl --reset /dev/zram0 2>/dev/null || true
+
+            # Fallback: manual ZRAM setup
+            modprobe zram num_devices=1 2>/dev/null || true
+            echo "$ZRAM_ALGORITHM" > /sys/block/zram0/comp_algorithm 2>/dev/null || true
+            echo $((ZRAM_SIZE_GB * 1024 * 1024 * 1024)) > /sys/block/zram0/disksize
+
+            if ! mkswap /dev/zram0 >/dev/null 2>&1; then
+                log_error "Failed to create swap on ZRAM device"
+                add_anomaly "CRITICAL" "zram_mkswap" "/dev/zram0" "mkswap failed" \
+                    "Could not format ZRAM device" \
+                    "Check kernel logs: dmesg | grep zram"
+                return 1
+            fi
+
+            if ! swapon -p 100 /dev/zram0 2>/dev/null; then
+                log_error "Failed to activate ZRAM swap"
+                add_anomaly "CRITICAL" "zram_swapon" "/dev/zram0" "swapon failed" \
+                    "Could not activate ZRAM swap" \
+                    "Check: swapon --show; dmesg | grep zram"
+                return 1
+            fi
+            log_success "ZRAM configured manually with priority 100"
+        }
+    else
+        # No existing ZRAM, just start the service
+        systemctl daemon-reload
+        systemctl start systemd-zram-setup@zram0.service || {
+            log_warning "zram-generator service failed"
+        }
+    fi
+
+    # Verify ZRAM is active with correct priority
+    if swapon --show | grep -q zram0; then
+        local zram_prio=$(swapon --show=NAME,PRIO | grep zram0 | awk '{print $2}')
+        if [[ "$zram_prio" -eq 100 ]]; then
+            log_success "ZRAM active with priority $zram_prio"
+        elif [[ "$zram_prio" -gt 100 ]]; then
+            log_info "ZRAM priority is $zram_prio (higher than expected 100, acceptable)"
+        else
+            log_warning "ZRAM priority is $zram_prio (expected 100), attempting fix..."
+            swapoff /dev/zram0 2>/dev/null || true
+            if swapon -p 100 /dev/zram0 2>/dev/null; then
+                # Verify the fix worked
+                zram_prio=$(swapon --show=NAME,PRIO | grep zram0 | awk '{print $2}')
+                if [[ "$zram_prio" -eq 100 ]]; then
+                    log_success "ZRAM priority corrected to 100"
+                else
+                    log_warning "ZRAM priority still $zram_prio after fix attempt"
+                fi
+            else
+                log_error "Failed to reactivate ZRAM swap with priority 100"
+            fi
+        fi
     fi
 
     return 0
