@@ -1,0 +1,42 @@
+[Unit]
+Description=OOM Protection Daemon - Dynamic oom_score_adj management
+Documentation=https://github.com/CyPack/fedora-memory-optimizer
+After=multi-user.target graphical.target
+Wants=graphical.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/oom-protection-daemon start
+ExecStop=/usr/local/bin/oom-protection-daemon stop
+ExecReload=/bin/kill -HUP $MAINPID
+
+# Run as root to modify oom_score_adj
+User=root
+
+# Restart on failure
+Restart=on-failure
+RestartSec=5
+
+# Resource limits for the daemon itself
+MemoryMax=50M
+MemoryHigh=30M
+CPUQuota=5%
+
+# Protect the daemon from OOM
+OOMScoreAdjust=-1000
+OOMPolicy=continue
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=oom-protection-daemon
+
+# Security hardening
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=read-only
+PrivateTmp=yes
+ReadWritePaths=/var/log /run
+
+[Install]
+WantedBy=multi-user.target
