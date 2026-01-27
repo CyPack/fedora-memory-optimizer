@@ -358,11 +358,11 @@ scan_all_processes() {
 
         local category=$(categorize_process "$name")
         case "$category" in
-            IMMORTAL)  ((count_immortal++)) ;;
-            PROTECTED) ((count_protected++)) ;;
-            KILLABLE)  ((count_killable++)) ;;
+            IMMORTAL)  count_immortal=$((count_immortal + 1)) ;;
+            PROTECTED) count_protected=$((count_protected + 1)) ;;
+            KILLABLE)  count_killable=$((count_killable + 1)) ;;
         esac
-        ((count_total++))
+        count_total=$((count_total + 1))
     done
 
     log_info "Scan complete: $count_total processes (IMMORTAL: $count_immortal, PROTECTED: $count_protected, KILLABLE: $count_killable)"
@@ -426,13 +426,13 @@ show_status() {
         [[ -z "$score" ]] && continue
 
         if [[ "$score" -le -1000 ]]; then
-            ((immortal++))
+            immortal=$((immortal + 1))
         elif [[ "$score" -le -500 ]]; then
-            ((protected++))
+            protected=$((protected + 1))
         elif [[ "$score" -ge 500 ]]; then
-            ((killable++))
+            killable=$((killable + 1))
         else
-            ((normal++))
+            normal=$((normal + 1))
         fi
     done
 
