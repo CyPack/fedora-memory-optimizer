@@ -49,6 +49,10 @@ readonly NC='\033[0m'
 readonly ZRAM_RATIO=50        # 50% of RAM
 readonly SWAPFILE_RATIO=100   # 100% of RAM (1:1 ratio, hibernate-ready)
 
+# Swap priorities (higher = used first)
+readonly ZRAM_PRIORITY=100    # ZRAM: fast, compressed
+readonly SWAPFILE_PRIORITY=30 # Disk: slower, for overflow
+
 # Sysctl values (Best Practices 2025-2026)
 readonly SYSCTL_SWAPPINESS=180
 readonly SYSCTL_PAGE_CLUSTER=0
@@ -798,7 +802,7 @@ compression-algorithm = $ZRAM_ALGORITHM
 
 # Swap priority (higher = preferred)
 # ZRAM should be higher than disk swap
-swap-priority = 100
+swap-priority = $ZRAM_PRIORITY
 
 # File system (swap is most efficient for this use case)
 fs-type = swap
@@ -844,14 +848,14 @@ EOF
                 return 1
             fi
 
-            if ! swapon -p 100 /dev/zram0 2>/dev/null; then
+            if ! swapon -p $ZRAM_PRIORITY /dev/zram0 2>/dev/null; then
                 log_error "Failed to activate ZRAM swap"
                 add_anomaly "CRITICAL" "zram_swapon" "/dev/zram0" "swapon failed" \
                     "Could not activate ZRAM swap" \
                     "Check: swapon --show; dmesg | grep zram"
                 return 1
             fi
-            log_success "ZRAM configured manually with priority 100"
+            log_success "ZRAM configured manually with priority $ZRAM_PRIORITY"
         }
     else
         # No existing ZRAM, just start the service
@@ -864,23 +868,23 @@ EOF
     # Verify ZRAM is active with correct priority
     if swapon --show | grep -q zram0; then
         local zram_prio=$(swapon --show=NAME,PRIO | grep zram0 | awk '{print $2}')
-        if [[ "$zram_prio" -eq 100 ]]; then
+        if [[ "$zram_prio" -eq "$ZRAM_PRIORITY" ]]; then
             log_success "ZRAM active with priority $zram_prio"
-        elif [[ "$zram_prio" -gt 100 ]]; then
-            log_info "ZRAM priority is $zram_prio (higher than expected 100, acceptable)"
+        elif [[ "$zram_prio" -gt "$ZRAM_PRIORITY" ]]; then
+            log_info "ZRAM priority is $zram_prio (higher than expected $ZRAM_PRIORITY, acceptable)"
         else
-            log_warning "ZRAM priority is $zram_prio (expected 100), attempting fix..."
+            log_warning "ZRAM priority is $zram_prio (expected $ZRAM_PRIORITY), attempting fix..."
             swapoff /dev/zram0 2>/dev/null || true
-            if swapon -p 100 /dev/zram0 2>/dev/null; then
+            if swapon -p $ZRAM_PRIORITY /dev/zram0 2>/dev/null; then
                 # Verify the fix worked
                 zram_prio=$(swapon --show=NAME,PRIO | grep zram0 | awk '{print $2}')
-                if [[ "$zram_prio" -eq 100 ]]; then
-                    log_success "ZRAM priority corrected to 100"
+                if [[ "$zram_prio" -eq "$ZRAM_PRIORITY" ]]; then
+                    log_success "ZRAM priority corrected to $ZRAM_PRIORITY"
                 else
                     log_warning "ZRAM priority still $zram_prio after fix attempt"
                 fi
             else
-                log_error "Failed to reactivate ZRAM swap with priority 100"
+                log_error "Failed to reactivate ZRAM swap with priority $ZRAM_PRIORITY"
             fi
         fi
     fi
@@ -922,7 +926,7 @@ configure_swapfile() {
 
             # Ensure it's in fstab
             if ! grep -q "^$SWAPFILE_PATH" /etc/fstab; then
-                echo "$SWAPFILE_PATH none swap sw,pri=10 0 0" >> /etc/fstab
+                echo "$SWAPFILE_PATH none swap sw,pri=$SWAPFILE_PRIORITY 0 0" >> /etc/fstab
                 log_success "Added swapfile to fstab"
             fi
 
@@ -980,8 +984,8 @@ configure_swapfile() {
     if ! grep -q "^$SWAPFILE_PATH" /etc/fstab; then
         # Backup fstab
         cp /etc/fstab /etc/fstab.bak.$(date +%Y%m%d%H%M%S)
-        echo "$SWAPFILE_PATH none swap sw,pri=10 0 0" >> /etc/fstab
-        log_success "Added swapfile to fstab (priority 10)"
+        echo "$SWAPFILE_PATH none swap sw,pri=$SWAPFILE_PRIORITY 0 0" >> /etc/fstab
+        log_success "Added swapfile to fstab (priority $SWAPFILE_PRIORITY)"
     fi
 
     # Activate
@@ -1347,8 +1351,8 @@ print_summary() {
     echo ""
 
     echo -e "${BOLD}Configuration:${NC}"
-    echo "  ZRAM: ${ZRAM_SIZE_GB}GB (${ZRAM_RATIO}% of RAM) @ priority 100"
-    echo "  Swapfile: ${SWAPFILE_SIZE_GB}GB (${SWAPFILE_RATIO}% of RAM) @ priority 10"
+    echo "  ZRAM: ${ZRAM_SIZE_GB}GB (${ZRAM_RATIO}% of RAM) @ priority $ZRAM_PRIORITY"
+    echo "  Swapfile: ${SWAPFILE_SIZE_GB}GB (${SWAPFILE_RATIO}% of RAM) @ priority $SWAPFILE_PRIORITY"
     echo "  Compression: $ZRAM_ALGORITHM"
     echo ""
 
