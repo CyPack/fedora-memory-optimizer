@@ -1,0 +1,125 @@
+# Universal Memory Optimizer Configuration
+# Edit this file to customize behavior
+
+#───────────────────────────────────────────────────────────────────────────────
+# ARCHITECTURE
+#───────────────────────────────────────────────────────────────────────────────
+
+# Memory sizing ratios (percentage of RAM)
+architecture:
+  # ZRAM size as percentage of RAM (default: 50 = RAM/2)
+  zram_ratio: 50
+
+  # Swapfile size as percentage of RAM (default: 25 = RAM/4 = ZRAM/2)
+  swapfile_ratio: 25
+
+  # Examples:
+  #   32GB RAM → 16GB ZRAM → 8GB Swapfile
+  #   16GB RAM → 8GB ZRAM → 4GB Swapfile
+  #   8GB RAM → 4GB ZRAM → 2GB Swapfile
+  #   4GB RAM → 2GB ZRAM → 1GB Swapfile
+
+#───────────────────────────────────────────────────────────────────────────────
+# ZRAM CONFIGURATION
+#───────────────────────────────────────────────────────────────────────────────
+
+zram:
+  # Compression algorithm
+  # Options: zstd (best ratio), lz4 (fastest), lzo-rle (balanced)
+  algorithm: zstd
+
+  # Swap priority (higher = used first)
+  priority: 100
+
+#───────────────────────────────────────────────────────────────────────────────
+# SWAPFILE CONFIGURATION
+#───────────────────────────────────────────────────────────────────────────────
+
+swapfile:
+  # Path to swapfile
+  path: /swapfile
+
+  # Swap priority (lower than ZRAM)
+  priority: 10
+
+  # Protect hibernate configuration
+  # If true, won't modify swapfile if hibernate is configured
+  hibernate_protection: true
+
+#───────────────────────────────────────────────────────────────────────────────
+# KERNEL PARAMETERS (SYSCTL)
+#───────────────────────────────────────────────────────────────────────────────
+
+sysctl:
+  # How aggressively to use swap (0-200)
+  # For ZRAM: 180 is optimal
+  # Source: ArchWiki, Pop!_OS, ChromeOS
+  swappiness: 180
+
+  # Pages to read at once from swap (2^n pages)
+  # 0 = single page, optimal for ZRAM
+  # Source: ChromeOS, Android defaults
+  page_cluster: 0
+
+  # How aggressively to reclaim dentry/inode caches
+  # Lower = keep caches longer (better for responsiveness)
+  vfs_cache_pressure: 50
+
+  # When to wake kswapd (fraction of 10000)
+  # Higher = earlier, smoother memory management
+  watermark_scale_factor: 125
+
+  # Disable watermark boosting
+  watermark_boost_factor: 0
+
+  # Dirty page ratios
+  dirty_ratio: 10
+  dirty_background_ratio: 5
+
+#───────────────────────────────────────────────────────────────────────────────
+# OOM HANDLING
+#───────────────────────────────────────────────────────────────────────────────
+
+# OOM policy is NOT configured by this optimizer.
+# The 3-tier swap system (RAM → ZRAM → Swapfile) should handle most scenarios.
+# When all swap is exhausted, the kernel's default OOM killer will handle it.
+# This prevents potential deadlocks from custom OOM policies.
+
+#───────────────────────────────────────────────────────────────────────────────
+# BOOTLOADER
+#───────────────────────────────────────────────────────────────────────────────
+
+bootloader:
+  # Detection mode: auto | grub | systemd-boot | uki | skip
+  detection: auto
+
+  # ZSWAP disable (required for ZRAM)
+  disable_zswap: true
+
+#───────────────────────────────────────────────────────────────────────────────
+# BACKUP & LOGGING
+#───────────────────────────────────────────────────────────────────────────────
+
+backup:
+  # Backup directory
+  directory: /root/memory-optimizer-backups
+
+  # Keep last N backups (0 = keep all)
+  retention: 5
+
+logging:
+  # Log level: quiet | normal | verbose | debug
+  level: normal
+
+  # Generate diagnostic reports
+  reports_enabled: true
+  reports_directory: /root/memory-optimizer-reports
+
+#───────────────────────────────────────────────────────────────────────────────
+# VERIFICATION
+#───────────────────────────────────────────────────────────────────────────────
+
+verification:
+  # Create verification script after installation
+  create_script: true
+  script_path: /usr/local/bin/memory-optimizer-verify
